@@ -12,8 +12,11 @@ import org.elasticsearch.shield.ShieldPlugin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Properties;
 
 /**
  * Class to run ES transport Client
@@ -22,9 +25,6 @@ import java.net.UnknownHostException;
 public class EsClient {
 
     private static final Logger log = LoggerFactory.getLogger(EsClient.class);
-    private static final String CLUSTER_ID = "8559709cdb41fc3e408d561d8f247623"; // Your cluster ID here
-    private static final String REGION = "us-west-1"; // Your region here
-    private static final boolean ENABLE_SSL = true;
 
     private Client client;
 
@@ -35,20 +35,66 @@ public class EsClient {
     /**
      * setup the ES transport client
      */
-    public void setupClient (){
+    private void setupClient (){
+
+        // Get cluster properties
+        Properties prop = new Properties();
+        InputStream input = null;
+
+        String esUser = "";
+        String esPasswd = "";
+        String esClusterID = "";
+        String esRegion = "";
+        boolean esEnableSsl = true;
+
+        try {
+
+            input = this.getClass().getResourceAsStream("/es.properties");
+
+            // load a properties file
+            prop.load(input);
+
+            // get the property value and print it out
+            esUser = prop.getProperty("shield_user");
+            esPasswd = prop.getProperty("shield_password"); // TODO: encrypt
+            esClusterID = prop.getProperty("es_cluster_id");
+            esRegion = prop.getProperty("es_cluster_region");
+            esEnableSsl = Boolean.parseBoolean(prop.getProperty("es_enable_ssl"));
+
+        } catch (IOException e) {
+           log.error("Error reading properties file", e);
+        } finally {
+            if (input != null) {
+                try {
+                    input.close();
+                } catch (IOException e) {
+                    log.error("Error, could not close input stream", e);
+                }
+            }
+        }
+
         try {
             // setup ES client settings
             Settings settings = Settings.settingsBuilder()
                     .put("transport.ping_schedule", "5s")
-                    .put("cluster.name", CLUSTER_ID)
+                    .put("cluster.name", esClusterID)
                     .put("action.bulk.compress", false)
-                    .put("shield.transport.ssl", ENABLE_SSL)
-                    .put("request.headers.X-Found-Cluster", CLUSTER_ID)
-                    .put("shield.user", "readwrite:veb3dp0a3dl") // your shield username and password
+                    .put("shield.transport.ssl", esEnableSsl)
+                    .put("request.headers.X-Found-Cluster", esClusterID)
+                    .put("shield.user", new StringBuilder()
+                            .append(esUser)
+                            .append(":")
+                            .append(esPasswd)
+                            .toString()) // shield username and password
                     .build();
 
             // construct hostname
-            String hostname = CLUSTER_ID + "." + REGION + ".aws.found.io";
+            String hostname = new StringBuilder()
+                    .append(esClusterID)
+                    .append(".")
+                    .append(esRegion)
+                    .append(".aws.found.io")
+                    .toString();
 
             // Build client
             client = TransportClient.builder()
@@ -140,7 +186,7 @@ public class EsClient {
      */
     public static void main (String [] args){
         EsClient esClient = new EsClient();
-        String index = "foody";
+        String index = "foodyyou";
         String type = "yummy";
         String json = "{" +
                 "\"user\":\"kimchy\"," +
