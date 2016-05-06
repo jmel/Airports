@@ -1,7 +1,8 @@
 package org.databox.di.airport.domain;
 
 /**
- * Created by jlmelbourne on 5/3/16.
+ *  Geo point class for ES
+ *  @author Jason Melbourne
  */
 public class GeoPoint {
 

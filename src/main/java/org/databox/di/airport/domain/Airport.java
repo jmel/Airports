@@ -1,7 +1,8 @@
 package org.databox.di.airport.domain;
 
 /**
- * Created by jlmelbourne on 5/1/16.
+ *  Class to hold airport data
+ *  @author Jason Melbourne
  */
 public class Airport {
 
@@ -15,6 +16,7 @@ public class Airport {
     private String terminal;
     private String gate;
     private GeoPoint location;
+    private AirportStatus airportStatus;
 
     public String getCode() {
         return code;
@@ -94,5 +96,13 @@ public class Airport {
 
     public void setLocation(GeoPoint location) {
         this.location = location;
+    }
+
+    public AirportStatus getAirportStatus() {
+        return airportStatus;
+    }
+
+    public void setAirportStatus(AirportStatus airportStatus) {
+        this.airportStatus = airportStatus;
     }
 }

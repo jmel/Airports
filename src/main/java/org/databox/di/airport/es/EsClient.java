@@ -16,7 +16,8 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 
 /**
- * Created by jlmelbourne on 5/2/16.
+ * Class to run ES transport Client
+ * @author Jason Melbourne
  */
 public class EsClient {
 

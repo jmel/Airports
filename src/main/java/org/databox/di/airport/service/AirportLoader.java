@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.databox.di.airport.domain.Airport;
+import org.databox.di.airport.domain.AirportStatus;
 import org.databox.di.airport.domain.GeoPoint;
 import org.databox.di.airport.es.EsClient;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -11,88 +12,133 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
- * Created by jlmelbourne on 5/1/16.
+ *  Class to aggregate airport data and send to ES
+ *  @author Jason Melbourne
  */
 public class AirportLoader {
 
     private static final Logger log = LoggerFactory.getLogger(AirportLoader.class);
 
+    private static final String AIRPORT_LIST_PATH = "org/databox/di/airport/data/airport.json";
+    private static final String ES_INDEX = "airport";
+    private static final String ES_TYPE = "data";
+
     private List<Airport> airports = new ArrayList<Airport>();
 
+    public AirportLoader() {
+        loadAirports();
+    }
 
-    public void readAirports () {
+    public void loadAirports () {
         ObjectMapper mapper = new ObjectMapper();
 
         ClassLoader classLoader = getClass().getClassLoader();
-        File file = new File(classLoader.getResource("org/databox/di/airport/data/airport.json").getFile());
+        File file = new File(classLoader.getResource(AIRPORT_LIST_PATH).getFile());
         try {
             airports = mapper.readValue(file, new TypeReference<List<Airport>>(){});
         } catch (IOException e) {
-            log.error("unable to read airport data" + e.toString());
+            log.error("Unable to read airport data" + e.toString());
         }
         for (Airport airport: airports){
             airport.setLocation(new GeoPoint(airport.getLat(), airport.getLng()));
         }
     }
 
-    public static void main (String [] args){
-        // setup some variables for example
-        String index = "airport";
-        String type = "data";
+    public void getAirportStatus(){
+        ObjectMapper mapper = new ObjectMapper();
+        for (Airport airport : airports){
+            log.info("Getting status for airport code {}, in country {}", airport.getCode(), airport.getCountry());
+            if ("United States".equals(airport.getCountry())) {
+                try {
+                    URL url = new URL("http://services.faa.gov/airport/status/" + airport.getCode() + "?format=application/json");
+                    AirportStatus airportStatus = mapper.readValue(url, AirportStatus.class);
+                    airport.setAirportStatus(airportStatus);
+                } catch (MalformedURLException e) {
+                    log.error("Malformed URL", e);
+                } catch (FileNotFoundException e){
+                    log.info("No status update available for ", airport.getCode());
+                } catch (IOException e) {
+                    log.error("Unable to get airport status for " + airport.getCode(), e);
+                }
+            }
+        }
+    }
 
-        // get the airport data
-        AirportLoader airportLoader = new AirportLoader();
-        airportLoader.readAirports();
-
+    /**
+     * Method to send airport data to ES
+     */
+    public void sendToEs() {
         // get the esClient connection
         EsClient esClient = new EsClient();
-        esClient.setupIndex(index);
+        esClient.setupIndex(ES_INDEX);
 
-        // setup mapping for airport
+        // setup ES mapping for airport
         try {
             XContentBuilder mapping = jsonBuilder().prettyPrint()
                     .startObject()
-                    .startObject(type)
+                    .startObject(ES_TYPE)
                     .startObject("properties")
                         .startObject("location")
-                            .field("type", "geo_point")
+                            .field("ES_TYPE", "geo_point")
                         .endObject()
                         .startObject("country")
-                            .field("type", "string")
-                            .field("index", "not_analyzed")
+                            .field("ES_TYPE", "string")
+                            .field("ES_INDEX", "not_analyzed")
                         .endObject()
                     .endObject()
                     .endObject()
                     .endObject();
 
-            esClient.setupMapping(index, type, mapping);
+            esClient.setupMapping(ES_INDEX, ES_TYPE, mapping);
         }
         catch (IOException e) {
             log.error("Error making mapping ", e);
             return;
         }
 
-        // create object mapper
+        // create object mapper and send JSON to ES
         ObjectMapper objectMapper = new ObjectMapper();
-        for (Airport airport : airportLoader.getAirports()){
+        for (Airport airport : this.airports){
             try {
                 byte[] json = objectMapper.writeValueAsBytes(airport);
-                esClient.putData(index, type, json);
+                esClient.putData(ES_INDEX, ES_TYPE, json);
             }
             catch (JsonProcessingException e) {
                 log.error("Error converting to json", e);
             }
-
         }
+        esClient.close();
     }
 
+    /**
+     * Main method to play with code
+     * @param args
+     */
+    public static void main (String [] args){
+        // get the airport data
+        AirportLoader airportLoader = new AirportLoader();
+
+        // get current airport status
+        airportLoader.getAirportStatus();
+
+        // send data to ES
+        airportLoader.sendToEs();
+    }
+
+    /**
+     * get method for airport data
+     * @return
+     */
     public List<Airport> getAirports() {
         return airports;
     }
