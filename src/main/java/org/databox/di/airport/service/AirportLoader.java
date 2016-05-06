@@ -30,7 +30,7 @@ public class AirportLoader {
     private static final Logger log = LoggerFactory.getLogger(AirportLoader.class);
 
     private static final String AIRPORT_LIST_PATH = "org/databox/di/airport/data/airport.json";
-    private static final String ES_INDEX = "airport";
+    private static final String ES_INDEX = "airport"; // TODO:use alias to create index name
     private static final String ES_TYPE = "data";
 
     private List<Airport> airports = new ArrayList<Airport>();
@@ -39,6 +39,9 @@ public class AirportLoader {
         loadAirports();
     }
 
+    /**
+     * Method to load airport list from JSON
+     */
     public void loadAirports () {
         ObjectMapper mapper = new ObjectMapper();
 
@@ -54,6 +57,10 @@ public class AirportLoader {
         }
     }
 
+    /**
+     * Method to update the airport status from the FAA
+     * e.g., record current weather and any delays
+     */
     public void getAirportStatus(){
         ObjectMapper mapper = new ObjectMapper();
         for (Airport airport : airports){
@@ -83,6 +90,8 @@ public class AirportLoader {
         esClient.setupIndex(ES_INDEX);
 
         // setup ES mapping for airport
+        // TODO: put this into a JSON mapping file and specify mapping for more fields
+        // TODO: write a method to read in mapping file
         try {
             XContentBuilder mapping = jsonBuilder().prettyPrint()
                     .startObject()
