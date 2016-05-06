@@ -42,7 +42,7 @@ public class AirportLoader {
     /**
      * Method to load airport list from JSON
      */
-    public void loadAirports () {
+    private void loadAirports () {
         ObjectMapper mapper = new ObjectMapper();
 
         ClassLoader classLoader = getClass().getClassLoader();
